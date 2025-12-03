@@ -3,7 +3,6 @@ import prisma from '@/lib/prisma'
 import { getUserIdFromRequest } from '@/lib/auth'
 import { generateFlashcards } from '@/lib/gemini'
 
-
 export async function POST(request) {
   try {
     const userId = getUserIdFromRequest(request)
