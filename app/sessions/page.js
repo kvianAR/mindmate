@@ -25,6 +25,10 @@ export default function SessionsPage() {
     flashcardsReviewed: 0
   })
   const [isEndingSession, setIsEndingSession] = useState(false)
+  const [flashcardDialogOpen, setFlashcardDialogOpen] = useState(false)
+  const [selectedSessionFlashcards, setSelectedSessionFlashcards] = useState([])
+  const [loadingFlashcards, setLoadingFlashcards] = useState(false)
+  const [selectedSessionInfo, setSelectedSessionInfo] = useState(null)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -63,10 +67,13 @@ export default function SessionsPage() {
   const startNewSession = async () => {
     const topic = sessionData.topic || 'General Study'
     
-    setActiveSession({
+    const newSession = {
       startTime: new Date(),
-      topic: topic
-    })
+      topic: topic,
+      sessionId: Date.now() // Temporary ID for linking flashcards
+    }
+    
+    setActiveSession(newSession)
     setElapsedTime(0)
     setIsDialogOpen(false)
 
@@ -113,6 +120,35 @@ export default function SessionsPage() {
       } else {
         alert(`⚠️ Failed to generate flashcards: ${error.message}`)
       }
+    }
+  }
+
+  const viewSessionFlashcards = async (session) => {
+    try {
+      setLoadingFlashcards(true)
+      setSelectedSessionInfo(session)
+      
+      // Fetch flashcards created during this session (by topic and around the same time)
+      const sessionDate = new Date(session.createdAt)
+      const response = await apiRequest(`/api/flashcards?topic=${encodeURIComponent(session.topic || '')}&limit=50`)
+      
+      // Filter flashcards that were likely created during this session
+      // (within 1 hour of session creation and same topic)
+      const sessionFlashcards = response.flashcards.filter(card => {
+        if (!session.topic) return false
+        const cardDate = new Date(card.createdAt)
+        const timeDiff = Math.abs(cardDate.getTime() - sessionDate.getTime())
+        const oneHour = 60 * 60 * 1000
+        return card.topic === session.topic && timeDiff <= oneHour
+      })
+      
+      setSelectedSessionFlashcards(sessionFlashcards)
+      setFlashcardDialogOpen(true)
+    } catch (error) {
+      console.error('Failed to fetch session flashcards:', error)
+      alert('Failed to load flashcards for this session')
+    } finally {
+      setLoadingFlashcards(false)
     }
   }
 
@@ -359,7 +395,7 @@ export default function SessionsPage() {
             <h3 className="text-lg font-semibold mb-4">Recent Sessions</h3>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {sessions.map((session) => (
-                <Card key={session.id} className="hover:shadow-md transition-shadow">
+                <Card key={session.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => viewSessionFlashcards(session)}>
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">
@@ -391,6 +427,11 @@ export default function SessionsPage() {
                           <span>{session.notesStudied.length}</span>
                         </div>
                       )}
+                      {session.flashcardsReviewed > 0 && (
+                        <div className="mt-3 pt-2 border-t">
+                          <span className="text-xs text-blue-600 font-medium">📚 Click to view generated flashcards</span>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -399,6 +440,120 @@ export default function SessionsPage() {
           </div>
         ) : null}
       </div>
+
+      {/* Flashcards Dialog */}
+      <Dialog open={flashcardDialogOpen} onOpenChange={setFlashcardDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              📚 Generated Flashcards
+              {selectedSessionInfo && (
+                <Badge variant="outline" className="ml-2">
+                  {selectedSessionInfo.topic || 'General Study'}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedSessionInfo && (
+                <>
+                  Session from {new Date(selectedSessionInfo.createdAt).toLocaleDateString()} • 
+                  {selectedSessionInfo.duration} minutes • 
+                  {selectedSessionInfo.flashcardsReviewed} cards reviewed
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="mt-4">
+            {loadingFlashcards ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                <span className="ml-2">Loading flashcards...</span>
+              </div>
+            ) : selectedSessionFlashcards.length > 0 ? (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  Found {selectedSessionFlashcards.length} flashcard{selectedSessionFlashcards.length !== 1 ? 's' : ''} from this session
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  {selectedSessionFlashcards.map((card, index) => (
+                    <Card key={card.id} className="border-l-4 border-l-blue-500">
+                      <CardHeader className="pb-2">
+                        <div className="flex items-center justify-between">
+                          <Badge variant="outline" className="text-xs">
+                            Card #{index + 1}
+                          </Badge>
+                          {card.difficulty && (
+                            <Badge variant={
+                              card.difficulty === 'easy' ? 'default' : 
+                              card.difficulty === 'hard' ? 'destructive' : 'secondary'
+                            } className="text-xs">
+                              {card.difficulty}
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
+                              Question
+                            </div>
+                            <div className="text-sm font-medium">
+                              {card.front}
+                            </div>
+                          </div>
+                          <Separator />
+                          <div>
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mb-1">
+                              Answer
+                            </div>
+                            <div className="text-sm text-muted-foreground">
+                              {card.back}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <div className="text-muted-foreground">
+                  {selectedSessionInfo?.flashcardsReviewed > 0 ? (
+                    <>
+                      <div className="text-lg mb-2">🔍 No flashcards found</div>
+                      <div className="text-sm">
+                        This session had {selectedSessionInfo.flashcardsReviewed} flashcards reviewed, 
+                        but they may have been deleted or created in a different session.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg mb-2">📝 No flashcards generated</div>
+                      <div className="text-sm">
+                        This study session did not include flashcard generation.
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-2 mt-6 pt-4 border-t">
+            <Button variant="outline" onClick={() => setFlashcardDialogOpen(false)}>
+              Close
+            </Button>
+            {selectedSessionFlashcards.length > 0 && (
+              <Button onClick={() => window.open('/flashcards', '_blank')}>
+                View All Flashcards
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
