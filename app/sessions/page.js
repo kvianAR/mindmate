@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { apiRequest } from '@/lib/api'
 
 export default function SessionsPage() {
   const { user } = useAuth()
@@ -23,6 +24,7 @@ export default function SessionsPage() {
     notesStudied: [],
     flashcardsReviewed: 0
   })
+  const [isEndingSession, setIsEndingSession] = useState(false)
   const timerRef = useRef(null)
 
   useEffect(() => {
@@ -49,11 +51,8 @@ export default function SessionsPage() {
 
   const fetchSessions = async () => {
     try {
-      const response = await fetch('/api/sessions')
-      if (response.ok) {
-        const data = await response.json()
-        setSessions(data)
-      }
+      const data = await apiRequest('/api/sessions')
+      setSessions(data)
     } catch (error) {
       console.error('Failed to fetch sessions:', error)
     } finally {
@@ -71,15 +70,20 @@ export default function SessionsPage() {
   }
 
   const endSession = async () => {
-    if (!activeSession) return
+    if (!activeSession || isEndingSession) return
 
+    setIsEndingSession(true)
     try {
-      const duration = Math.floor(elapsedTime / 60) // Convert to minutes
-      const response = await fetch('/api/sessions', {
+      const duration = Math.max(1, Math.floor(elapsedTime / 60)) // Minimum 1 minute
+      console.log('Ending session with data:', {
+        topic: activeSession.topic,
+        duration: duration,
+        notesStudied: sessionData.notesStudied,
+        flashcardsReviewed: sessionData.flashcardsReviewed
+      })
+      
+      const result = await apiRequest('/api/sessions', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           topic: activeSession.topic,
           duration: duration,
@@ -88,18 +92,24 @@ export default function SessionsPage() {
         }),
       })
       
-      if (response.ok) {
-        setActiveSession(null)
-        setElapsedTime(0)
-        setSessionData({
-          topic: '',
-          notesStudied: [],
-          flashcardsReviewed: 0
-        })
-        fetchSessions()
-      }
+      console.log('Session saved successfully:', result)
+      
+      // Reset session state
+      setActiveSession(null)
+      setElapsedTime(0)
+      setSessionData({
+        topic: '',
+        notesStudied: [],
+        flashcardsReviewed: 0
+      })
+      // Refresh sessions list
+      fetchSessions()
     } catch (error) {
       console.error('Failed to end session:', error)
+      // Show user-friendly error message
+      alert(`Failed to save session: ${error.message}`)
+    } finally {
+      setIsEndingSession(false)
     }
   }
 
@@ -153,9 +163,10 @@ export default function SessionsPage() {
                 <Button 
                   variant="outline" 
                   onClick={endSession}
-                  className="border-red-200 text-red-600 hover:bg-red-50"
+                  disabled={isEndingSession}
+                  className="border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50"
                 >
-                  End Session
+                  {isEndingSession ? 'Saving...' : 'End Session'}
                 </Button>
               </div>
             ) : (

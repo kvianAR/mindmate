@@ -33,7 +33,7 @@ export async function POST(request) {
 
     const { topic, duration, notesStudied, flashcardsReviewed } = await request.json()
 
-    if (!duration) {
+    if (duration === undefined || duration === null) {
       return NextResponse.json(
         { error: 'Duration is required' },
         { status: 400 }
