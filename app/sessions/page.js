@@ -60,13 +60,46 @@ export default function SessionsPage() {
     }
   }
 
-  const startNewSession = () => {
+  const startNewSession = async () => {
+    const topic = sessionData.topic || 'General Study'
+    
     setActiveSession({
       startTime: new Date(),
-      topic: sessionData.topic || 'General Study'
+      topic: topic
     })
     setElapsedTime(0)
     setIsDialogOpen(false)
+
+    // Generate AI flashcards if flashcards to review is specified
+    if (sessionData.flashcardsReviewed > 0) {
+      await generateAIFlashcards(topic, sessionData.flashcardsReviewed)
+    }
+  }
+
+  const generateAIFlashcards = async (topic, count) => {
+    try {
+      console.log(`Generating ${count} AI flashcards for topic: ${topic}`)
+      
+      const response = await apiRequest('/api/ai/flashcards', {
+        method: 'POST',
+        body: JSON.stringify({
+          topic: topic,
+          count: count,
+          difficulty: 'medium'
+        })
+      })
+
+      console.log('AI Flashcards generated successfully:', response)
+      
+      // Show success notification (you can replace this with a proper toast notification)
+      if (response.flashcards && response.flashcards.length > 0) {
+        alert(`🎉 Generated ${response.flashcards.length} AI flashcards for "${topic}"! Check your flashcards page to review them.`)
+      }
+    } catch (error) {
+      console.error('Failed to generate AI flashcards:', error)
+      // Show error notification
+      alert(`⚠️ Failed to generate AI flashcards: ${error.message}`)
+    }
   }
 
   const endSession = async () => {

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { getUserIdFromRequest } from '@/lib/auth'
-import { generateFlashcards } from '@/lib/gemini'
+import { generateFlashcards, generateFlashcardsFromTopic } from '@/lib/gemini'
 
 export async function POST(request) {
   try {
@@ -10,16 +10,24 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { topic, content, saveToDatabase } = await request.json()
+    const { topic, content, count = 5, difficulty = 'medium', saveToDatabase = true } = await request.json()
 
-    if (!topic || !content) {
+    if (!topic) {
       return NextResponse.json(
-        { error: 'Topic and content are required' },
+        { error: 'Topic is required' },
         { status: 400 }
       )
     }
 
-    const flashcards = await generateFlashcards(topic, content)
+    let flashcards
+
+    // If content is provided, generate flashcards from content
+    if (content) {
+      flashcards = await generateFlashcards(topic, content)
+    } else {
+      // Generate flashcards based on topic alone for study sessions
+      flashcards = await generateFlashcardsFromTopic(topic, count, difficulty)
+    }
 
     if (saveToDatabase) {
       const createdCards = await Promise.all(
@@ -29,7 +37,8 @@ export async function POST(request) {
               front: card.front,
               back: card.back,
               topic,
-              userId
+              userId,
+              difficulty: difficulty
             }
           })
         )
@@ -39,6 +48,7 @@ export async function POST(request) {
 
     return NextResponse.json({ flashcards })
   } catch (error) {
+    console.error('Flashcard generation error:', error)
     return NextResponse.json(
       { error: error.message || 'Failed to generate flashcards' },
       { status: 500 }
