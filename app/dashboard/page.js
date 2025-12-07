@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [customGoals, setCustomGoals] = useState([])
   const [isGoalDialogOpen, setIsGoalDialogOpen] = useState(false)
+  const [recentSessions, setRecentSessions] = useState([])
   const [newGoal, setNewGoal] = useState({
     title: '',
     type: 'daily',
@@ -29,6 +30,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchAnalytics()
+    fetchRecentSessions()
     fetchCustomGoals()
   }, [])
 
@@ -40,6 +42,15 @@ export default function DashboardPage() {
       console.error('Failed to fetch analytics:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchRecentSessions = async () => {
+    try {
+      const data = await apiRequest('/api/sessions?limit=10')
+      setRecentSessions(data.sessions || [])
+    } catch (error) {
+      console.error('Failed to fetch recent sessions:', error)
     }
   }
 
@@ -263,26 +274,62 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      {/* Top Topics with Progress */}
-                      {analytics.topTopics && analytics.topTopics.length > 0 ? (
+                      {/* Recently Studied Topics from Sessions */}
+                      {recentSessions && recentSessions.length > 0 ? (
                         <div className="space-y-3">
-                          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Most Studied Topics</h4>
-                          {analytics.topTopics.slice(0, 3).map((topic, index) => {
-                            const progress = Math.min(90, 20 + (index * 20) + Math.random() * 40) // Simulated progress
-                            return (
-                              <div key={index} className="space-y-2">
-                                <div className="flex justify-between items-center">
-                                  <span className="font-medium text-sm">{topic}</span>
-                                  <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
+                          <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">Recently Studied Topics</h4>
+                          {recentSessions
+                            .filter(session => session.topic) // Only sessions with topics
+                            .slice(0, 5) // Show max 5 recent topics
+                            .map((session, index) => {
+                              // Calculate progress based on session duration and flashcards
+                              const baseProgress = Math.min(session.duration * 2, 60) // Duration-based progress
+                              const flashcardBonus = session.flashcardsReviewed * 5 // Bonus for flashcards
+                              const progress = Math.min(baseProgress + flashcardBonus, 95)
+                              
+                              return (
+                                <div key={session.id} className="space-y-2">
+                                  <div className="flex justify-between items-center">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm">{session.topic}</span>
+                                      <Badge variant="outline" className="text-xs">
+                                        {session.duration}m
+                                      </Badge>
+                                      {session.flashcardsReviewed > 0 && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {session.flashcardsReviewed} cards
+                                        </Badge>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs text-muted-foreground">{Math.round(progress)}%</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {new Date(session.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <Progress value={progress} className="h-2" />
                                 </div>
-                                <Progress value={progress} className="h-2" />
-                              </div>
-                            )
-                          })}
+                              )
+                            })}
+                          
+                          {/* Show unique topics count */}
+                          <div className="pt-2 mt-3 border-t">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <span>Unique topics studied: {new Set(recentSessions.filter(s => s.topic).map(s => s.topic)).size}</span>
+                              <span>Total sessions: {recentSessions.length}</span>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <div className="text-center py-4">
-                          <p className="text-muted-foreground text-sm">No topics yet. Create some notes to get started!</p>
+                          <div className="mb-2">
+                            <svg className="w-8 h-8 mx-auto text-muted-foreground/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                            </svg>
+                          </div>
+                          <p className="text-muted-foreground text-sm">No study sessions yet</p>
+                          <p className="text-muted-foreground text-xs mt-1">Start a study session to track your progress!</p>
                         </div>
                       )}
                     </div>
