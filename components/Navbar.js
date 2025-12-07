@@ -24,7 +24,7 @@ export function Navbar() {
           <Link href="/dashboard" className="text-sm font-medium transition-colors hover:text-primary relative group">
             Dashboard
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all group-hover:w-full"></span>
-          </Link>
+          </Link >
           <Link href="/notes" className="text-sm font-medium transition-colors hover:text-primary relative group">
             Notes
             <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-primary transition-all group-hover:w-full"></span>
