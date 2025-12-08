@@ -3,6 +3,60 @@ import prisma from '@/lib/prisma'
 import { getUserIdFromRequest } from '@/lib/auth'
 import { generateRecommendations } from '@/lib/gemini'
 
+function calculateCurrentStreak(sessions) {
+  if (!sessions.length) return 0
+  
+  const uniqueDays = [...new Set(sessions.map(s => 
+    new Date(s.createdAt).toDateString()
+  ))].sort((a, b) => new Date(b) - new Date(a))
+  
+  let streak = 0
+  const today = new Date().toDateString()
+  const yesterday = new Date(Date.now() - 86400000).toDateString()
+  
+  if (uniqueDays.includes(today) || uniqueDays.includes(yesterday)) {
+    let currentDate = uniqueDays.includes(today) ? new Date() : new Date(Date.now() - 86400000)
+    
+    for (const dayString of uniqueDays) {
+      const day = new Date(dayString)
+      if (day.toDateString() === currentDate.toDateString()) {
+        streak++
+        currentDate = new Date(currentDate.getTime() - 86400000)
+      } else if (day < currentDate) {
+        break
+      }
+    }
+  }
+  
+  return streak
+}
+
+function calculateLongestStreak(sessions) {
+  if (!sessions.length) return 0
+  
+  const uniqueDays = [...new Set(sessions.map(s => 
+    new Date(s.createdAt).toDateString()
+  ))].sort((a, b) => new Date(a) - new Date(b))
+  
+  let longestStreak = 0
+  let currentStreak = 1
+  
+  for (let i = 1; i < uniqueDays.length; i++) {
+    const prevDay = new Date(uniqueDays[i - 1])
+    const currentDay = new Date(uniqueDays[i])
+    const dayDifference = (currentDay - prevDay) / (1000 * 60 * 60 * 24)
+    
+    if (dayDifference === 1) {
+      currentStreak++
+    } else {
+      longestStreak = Math.max(longestStreak, currentStreak)
+      currentStreak = 1
+    }
+  }
+  
+  return Math.max(longestStreak, currentStreak)
+}
+
 export async function GET(request) {
   try {
     const userId = getUserIdFromRequest(request)
@@ -56,6 +110,31 @@ export async function GET(request) {
     const topics = [...new Set(notes.map(n => n.topic).filter(Boolean))]
     const totalStudyTime = sessions.reduce((sum, s) => sum + s.duration, 0)
     const totalFlashcardReviews = flashcards.reduce((sum, f) => sum + f.reviewCount, 0)
+    
+    const avgSessionDuration = sessions.length > 0 ? Math.round(totalStudyTime / sessions.length) : 0
+    const flashcardsPerSession = sessions.length > 0 ? 
+      Math.round(sessions.reduce((sum, s) => sum + (s.flashcardsReviewed || 0), 0) / sessions.length) : 0
+    
+    const sessionsByTopic = {}
+    sessions.forEach(session => {
+      if (session.topic) {
+        if (!sessionsByTopic[session.topic]) {
+          sessionsByTopic[session.topic] = { count: 0, totalTime: 0 }
+        }
+        sessionsByTopic[session.topic].count += 1
+        sessionsByTopic[session.topic].totalTime += session.duration
+      }
+    })
+    
+    const topTopicsByTime = Object.entries(sessionsByTopic)
+      .map(([topic, data]) => ({
+        topic,
+        sessions: data.count,
+        totalTime: data.totalTime,
+        avgTime: Math.round(data.totalTime / data.count)
+      }))
+      .sort((a, b) => b.totalTime - a.totalTime)
+      .slice(0, 5)
 
     const dailyActivity = {}
     sessions.forEach(session => {
@@ -76,7 +155,9 @@ export async function GET(request) {
         totalSessions,
         totalStudyTime,
         totalFlashcardReviews,
-        topicsStudied: topics.length
+        topicsStudied: topics.length,
+        avgSessionDuration,
+        flashcardsPerSession
       },
       recentActivity: {
         notesCreated: notes.length,
@@ -88,7 +169,12 @@ export async function GET(request) {
         ...data
       })),
       recommendations: recommendations.filter(Boolean).slice(0, 5),
-      topTopics: topics.slice(0, 5)
+      topTopics: topics.slice(0, 5),
+      topTopicsByTime: topTopicsByTime,
+      studyStreaks: {
+        current: calculateCurrentStreak(sessions),
+        longest: calculateLongestStreak(sessions)
+      }
     })
   } catch (error) {
     return NextResponse.json(
