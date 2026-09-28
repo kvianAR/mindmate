@@ -1,23 +1,26 @@
 import { NextResponse } from 'next/server'
+import { validateCredentials } from '@/lib/validation.mjs'
 import prisma from '@/lib/prisma'
 import { comparePassword, generateToken } from '@/lib/auth'
 
 export async function POST(request) {
   try {
-    const { email, password } = await request.json()
+    const credentials = validateCredentials(await request.json().catch(() => null))
 
-    if (!email || !password) {
+    if (!credentials) {
       return NextResponse.json(
         { error: 'Email and password are required' },
         { status: 400 }
       )
     }
 
+    const { email, password } = credentials
+
     const user = await prisma.user.findUnique({
       where: { email }
     })
 
-    if (!user || !comparePassword(password, user.password)) {
+    if (!user || !(await comparePassword(password, user.password))) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }

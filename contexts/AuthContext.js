@@ -1,32 +1,35 @@
 'use client'
 
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useSyncExternalStore } from 'react'
 
 const AuthContext = createContext()
+const subscribe = (notify) => {
+  window.addEventListener('storage', notify)
+  window.addEventListener('mindmate-auth', notify)
+  return () => {
+    window.removeEventListener('storage', notify)
+    window.removeEventListener('mindmate-auth', notify)
+  }
+}
+const snapshot = () => localStorage.getItem('token') ? localStorage.getItem('user') || '' : ''
+const serverSnapshot = () => null
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const token = localStorage.getItem('token')
-    const userData = localStorage.getItem('user')
-    if (token && userData) {
-      setUser(JSON.parse(userData))
-    }
-    setLoading(false)
-  }, [])
+  const stored = useSyncExternalStore(subscribe, snapshot, serverSnapshot)
+  const loading = stored === null
+  let user = null
+  try { user = stored ? JSON.parse(stored) : null } catch { /* Invalid local state is signed out. */ }
 
   const login = (userData, token) => {
     localStorage.setItem('token', token)
     localStorage.setItem('user', JSON.stringify(userData))
-    setUser(userData)
+    window.dispatchEvent(new Event('mindmate-auth'))
   }
 
   const logout = () => {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
-    setUser(null)
+    window.dispatchEvent(new Event('mindmate-auth'))
   }
 
   const getToken = () => {
@@ -47,4 +50,3 @@ export function useAuth() {
   }
   return context
 }
-

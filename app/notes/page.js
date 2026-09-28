@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Navbar } from '@/components/Navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -31,11 +31,7 @@ export default function NotesPage() {
   const [summary, setSummary] = useState('')
   const [generatingSummary, setGeneratingSummary] = useState(false)
 
-  useEffect(() => {
-    fetchNotes()
-  }, [search, topic, sortBy, sortOrder, page])
-
-  const fetchNotes = async () => {
+  const fetchNotes = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -54,7 +50,10 @@ export default function NotesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [search, topic, sortBy, sortOrder, page])
+
+  useEffect(() => { fetchNotes() }, [fetchNotes])
+
 
   const handleCreate = () => {
     setEditingNote(null)

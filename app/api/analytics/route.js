@@ -11,7 +11,10 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const days = parseInt(searchParams.get('days') || '30')
+    const days = Number(searchParams.get('days') || '30')
+    if (!Number.isInteger(days) || days < 1 || days > 365) {
+      return NextResponse.json({ error: 'days must be between 1 and 365' }, { status: 400 })
+    }
 
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)

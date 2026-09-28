@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { isText, optionalTopic, stringList } from '@/lib/validation.mjs'
 import { getUserIdFromRequest } from '@/lib/auth'
 
 export async function GET(request, { params }) {
@@ -39,7 +40,10 @@ export async function PUT(request, { params }) {
     }
 
     const { id } = await params
-    const { title, content, topic, tags } = await request.json()
+    const { title, content, topic, tags } = await request.json().catch(() => ({}))
+    if ((title !== undefined && !isText(title, 300)) || (content !== undefined && !isText(content, 100000)) || !optionalTopic(topic) || !stringList(tags)) {
+      return NextResponse.json({ error: 'Invalid note fields' }, { status: 400 })
+    }
 
     const note = await prisma.note.findFirst({
       where: {

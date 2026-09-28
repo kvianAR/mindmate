@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { Navbar } from '@/components/Navbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,11 +32,7 @@ export default function FlashcardsPage() {
   const [generateData, setGenerateData] = useState({ topic: '', content: '', saveToDatabase: true })
   const [generating, setGenerating] = useState(false)
 
-  useEffect(() => {
-    fetchFlashcards()
-  }, [topic, sortBy, sortOrder, page])
-
-  const fetchFlashcards = async () => {
+  const fetchFlashcards = useCallback(async () => {
     try {
       setLoading(true)
       const params = new URLSearchParams({
@@ -54,7 +50,10 @@ export default function FlashcardsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [topic, sortBy, sortOrder, page])
+
+  useEffect(() => { fetchFlashcards() }, [fetchFlashcards])
+
 
   const handleCreate = () => {
     setFormData({ front: '', back: '', topic: '' })

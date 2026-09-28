@@ -40,4 +40,8 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# Shared setup example is safe to commit
+!.env.example
+
 /lib/generated/prisma
+/generated/prisma/

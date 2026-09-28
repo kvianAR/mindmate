@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { isText, optionalTopic, stringList, parsePagination } from '@/lib/validation.mjs'
 import { getUserIdFromRequest } from '@/lib/auth'
 
 export async function GET(request) {
@@ -11,12 +12,11 @@ export async function GET(request) {
     }
     
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const pagination = parsePagination(searchParams, ['createdAt', 'updatedAt', 'title', 'topic'])
+    if (!pagination) return NextResponse.json({ error: 'Invalid pagination or sort options' }, { status: 400 })
+    const { page, limit, sortBy, sortOrder } = pagination
     const search = searchParams.get('search') || ''
     const topic = searchParams.get('topic') || ''
-    const sortBy = searchParams.get('sortBy') || 'createdAt'
-    const sortOrder = searchParams.get('sortOrder') || 'desc'
 
     const skip = (page - 1) * limit
 
@@ -74,9 +74,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { title, content, topic, tags } = await request.json()
+    const { title, content, topic, tags } = await request.json().catch(() => ({}))
 
-    if (!title || !content) {
+    if (!isText(title, 300) || !isText(content, 100000) || !optionalTopic(topic) || !stringList(tags)) {
       return NextResponse.json(
         { error: 'Title and content are required' },
         { status: 400 }

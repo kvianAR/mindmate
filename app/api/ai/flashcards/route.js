@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { isText } from '@/lib/validation.mjs'
 import prisma from '@/lib/prisma'
 import { getUserIdFromRequest } from '@/lib/auth'
 import { generateFlashcards, generateFlashcardsFromTopic } from '@/lib/gemini'
@@ -10,9 +11,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { topic, content, count = 5, difficulty = 'medium', saveToDatabase = true } = await request.json()
+    const { topic, content, count = 5, difficulty = 'medium', saveToDatabase = true } = await request.json().catch(() => ({}))
 
-    if (!topic) {
+    if (!isText(topic, 200) || (content !== undefined && content !== '' && !isText(content, 100000)) || !Number.isInteger(count) || count < 1 || count > 20 || !['easy','medium','hard'].includes(difficulty) || typeof saveToDatabase !== 'boolean') {
       return NextResponse.json(
         { error: 'Topic is required' },
         { status: 400 }
@@ -48,7 +49,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('Flashcard generation error:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to generate flashcards' },
+      { error: 'Unable to generate flashcards. Check the AI provider configuration and quota.' },
       { status: 500 }
     )
   }

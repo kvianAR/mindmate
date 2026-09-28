@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { optionalTopic, stringList } from '@/lib/validation.mjs'
 import { getUserIdFromRequest } from '@/lib/auth'
 
 export async function GET(request) {
@@ -31,11 +32,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { topic, duration, notesStudied, flashcardsReviewed } = await request.json()
+    const { topic, duration, notesStudied, flashcardsReviewed } = await request.json().catch(() => ({}))
 
-    if (duration === undefined || duration === null) {
+    if (!Number.isInteger(duration) || duration < 1 || duration > 1440 || !optionalTopic(topic) || !stringList(notesStudied) || (flashcardsReviewed !== undefined && (!Number.isInteger(flashcardsReviewed) || flashcardsReviewed < 0 || flashcardsReviewed > 10000))) {
       return NextResponse.json(
-        { error: 'Duration is required' },
+        { error: 'Provide valid session fields and a duration of 1–1440 minutes' },
         { status: 400 }
       )
     }
@@ -43,9 +44,9 @@ export async function POST(request) {
     const session = await prisma.studySession.create({
       data: {
         topic: topic || null,
-        duration: parseInt(duration),
+        duration,
         notesStudied: notesStudied || [],
-        flashcardsReviewed: parseInt(flashcardsReviewed) || 0,
+        flashcardsReviewed: flashcardsReviewed ?? 0,
         userId
       }
     })

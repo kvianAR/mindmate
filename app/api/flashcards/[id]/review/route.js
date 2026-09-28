@@ -32,6 +32,10 @@ export async function PUT(request, { params }) {
       reviewCount: { increment: 1 }
     }
 
+    if (difficulty && !['easy', 'medium', 'hard'].includes(difficulty)) {
+      return NextResponse.json({ error: 'Invalid difficulty' }, { status: 400 })
+    }
+
     if (difficulty) {
       updateData.difficulty = difficulty
     }

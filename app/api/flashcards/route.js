@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
+import { isText, optionalTopic, stringList, parsePagination } from '@/lib/validation.mjs'
 import { getUserIdFromRequest } from '@/lib/auth'
 
 export async function GET(request) {
@@ -10,11 +11,10 @@ export async function GET(request) {
     }
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '10')
+    const pagination = parsePagination(searchParams, ['createdAt', 'updatedAt', 'front', 'topic', 'difficulty', 'lastReviewed', 'reviewCount'])
+    if (!pagination) return NextResponse.json({ error: 'Invalid pagination or sort options' }, { status: 400 })
+    const { page, limit, sortBy, sortOrder } = pagination
     const topic = searchParams.get('topic') || ''
-    const sortBy = searchParams.get('sortBy') || 'createdAt'
-    const sortOrder = searchParams.get('sortOrder') || 'desc'
 
     const skip = (page - 1) * limit
 
@@ -57,9 +57,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { front, back, topic } = await request.json()
+    const { front, back, topic } = await request.json().catch(() => ({}))
 
-    if (!front || !back) {
+    if (!isText(front) || !isText(back) || !optionalTopic(topic)) {
       return NextResponse.json(
         { error: 'Front and back are required' },
         { status: 400 }
